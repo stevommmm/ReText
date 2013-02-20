@@ -92,6 +92,6 @@ def convertToUnicode(string):
 		return string
 
 monofont = QFont()
-monofont.setFamily(readFromSettings('editorFont', str, default='monospace'))
+monofont.setFamily(readFromSettings('editorFont', str, default='Bitstream Vera Sans Mono'))
 if settings.contains('editorFontSize'):
 	monofont.setPointSize(readFromSettings('editorFontSize', int))
