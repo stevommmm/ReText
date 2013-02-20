@@ -3,10 +3,11 @@
 # License: GNU GPL v2 or higher
 
 from ReText import *
-from ReText.webpages import wpInit, wpUpdateAll
+from ReText.webpages import wpInit, wpUpdateAll, templatesDir
 from ReText.htmldialog import HtmlDialog
 from ReText.highlighter import ReTextHighlighter
 from ReText.editor import ReTextEdit
+from os.path import join as pathJoin
 
 class LocaleDialog(QDialog):
 	def __init__(self, parent, defaultText=""):
@@ -643,8 +644,41 @@ class ReTextWindow(QMainWindow):
 		else:
 			return self.editBoxes[self.ind].find(text)
 	
+	def getRstHtml(self, includeStyleSheet=True, includeTitle=True,
+	            includeMeta=False, styleForWebKit=False, webenv=False):
+		from docutils.core import publish_string
+
+		text = convertToUnicode(self.editBoxes[self.ind].toPlainText())
+		# WpGen directives
+		text = text.replace('%HTMLDIR%', 'html')
+		text = text.replace('%\\HTMLDIR%', '%HTMLDIR%')
+
+		defaultCssFile = pathJoin(templatesDir, "default.css")
+		defaultTmplFile = pathJoin(templatesDir, "template.html")
+
+		rst_opt = {
+		    'no_generator': True,
+		    'no_source_link': True,
+		    'tab_width': 4,
+		    'file_insertion_enabled': False,
+		    'raw_enabled': False,
+		    'stylesheet_path': None,
+		    'traceback': True,
+		    'halt_level': 5,
+		    'output_encoding' : 'unicode',
+		    }
+		rst_opt['stylesheet'] = defaultCssFile
+		rst_opt['template'] = defaultTmplFile
+
+		html = publish_string(text, writer_name='html', settings_overrides=rst_opt)
+		return html
+
 	def getHtml(self, includeStyleSheet=True, includeTitle=True,
 	            includeMeta=False, styleForWebKit=False, webenv=False):
+
+		if self.markups[self.ind].name == 'reStructuredText':
+			return self.getRstHtml(includeStyleSheet, includeTitle, includeMeta, styleForWebKit, webenv)
+
 		if self.markups[self.ind] is None:
 			markupClass = self.getMarkupClass()
 			errMsg = self.tr('Could not parse file contents, check if '
@@ -670,9 +704,14 @@ class ReTextWindow(QMainWindow):
 					(fontname, fontsize)
 			headers += '<style type="text/css">\n' + fontline + self.ss + '</style>\n'
 		cssFileName = self.getDocumentTitle(baseName=True)+'.css'
+		defaultCssFile = pathJoin(templatesDir, "default.css")
 		if QFile(cssFileName).exists():
 			headers += '<link rel="stylesheet" type="text/css" href="%s">\n' \
 			% QUrl.fromLocalFile(QFileInfo(cssFileName).absoluteFilePath()).toString()
+		elif QFile(defaultCssFile).exists():
+			headers += '<link rel="stylesheet" type="text/css" href="%s">\n' \
+			% QUrl.fromLocalFile(QFileInfo(defaultCssFile).absoluteFilePath()).toString()
+
 		if includeMeta:
 			headers += '<meta name="generator" content="%s %s">\n' % \
 			(app_name, app_version)
@@ -732,7 +771,7 @@ class ReTextWindow(QMainWindow):
 	def updateLivePreviewBox(self):
 		if self.actionLivePreview.isChecked() and self.previewBlocked == False:
 			self.previewBlocked = True
-			QTimer.singleShot(1000, self.updatePreviewBox)
+			QTimer.singleShot(300, self.updatePreviewBox)
 	
 	def startWpgen(self):
 		if not self.fileNames[self.ind]:
@@ -987,6 +1026,7 @@ class ReTextWindow(QMainWindow):
 		htmlFile = QFile(fileName)
 		htmlFile.open(QIODevice.WriteOnly)
 		html = QTextStream(htmlFile)
+		html.setCodec("utf-8")
 		html << htmltext
 		htmlFile.close()
 	
